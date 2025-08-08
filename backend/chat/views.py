@@ -67,8 +67,10 @@ def send_message(request):
             return JsonResponse({'error': 'Message is required'}, status=400)
         
         # Get or create session
+        logger.info("Starting session creation/retrieval...")
         if session_id:
             try:
+                logger.info(f"Looking for existing session: {session_id}")
                 session = ChatSession.objects.get(id=session_id)
                 logger.info(f"Found existing session: {session.id}")
             except ChatSession.DoesNotExist:
@@ -76,17 +78,34 @@ def send_message(request):
                 session = None
         else:
             # Create new session with title from first message
+            logger.info("Creating new session...")
             title = message_text[:50] + "..." if len(message_text) > 50 else message_text
-            session = ChatSession.objects.create(title=title)
-            logger.info(f"Created new session: {session.id} with title: {title}")
+            logger.info(f"Session title will be: {title}")
+            try:
+                session = ChatSession.objects.create(title=title)
+                logger.info(f"Created new session: {session.id} with title: {title}")
+            except Exception as e:
+                logger.error(f"Error creating session: {str(e)}")
+                logger.error(f"Error type: {type(e).__name__}")
+                import traceback
+                logger.error(f"Session creation traceback: {traceback.format_exc()}")
+                return JsonResponse({'error': 'Session creation failed', 'details': str(e)}, status=500)
         
         # Save user message
-        user_message = Message.objects.create(
-            session=session,
-            role='user',
-            content=message_text
-        )
-        logger.info(f"Saved user message: {user_message.id}")
+        logger.info("Starting user message creation...")
+        try:
+            user_message = Message.objects.create(
+                session=session,
+                role='user',
+                content=message_text
+            )
+            logger.info(f"Saved user message: {user_message.id}")
+        except Exception as e:
+            logger.error(f"Error creating user message: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"User message creation traceback: {traceback.format_exc()}")
+            return JsonResponse({'error': 'Message creation failed', 'details': str(e)}, status=500)
         
         # Get AI response
         logger.info("Calling AI chat function...")
