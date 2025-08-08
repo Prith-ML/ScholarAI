@@ -72,9 +72,9 @@ export default function ResearchPage() {
 
       // Fetch all data in parallel
       const [statsResponse, sessionsResponse, insightsResponse] = await Promise.all([
-        fetch('http://127.0.0.1:8000/api/chat/dashboard/stats/'),
-        fetch('http://127.0.0.1:8000/api/chat/dashboard/sessions/'),
-        fetch('http://127.0.0.1:8000/api/chat/dashboard/insights/'),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/dashboard/stats/`),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/dashboard/sessions/`),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/dashboard/insights/`),
       ])
 
       if (statsResponse.ok) {
@@ -106,7 +106,7 @@ export default function ResearchPage() {
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/chat/dashboard/sessions/${sessionId}/delete/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/dashboard/sessions/${sessionId}/delete/`, {
         method: 'DELETE',
       })
 
