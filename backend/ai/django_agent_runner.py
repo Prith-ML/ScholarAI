@@ -2,14 +2,10 @@ import os
 import logging
 import time
 from typing import Dict, List, Any, Optional
-from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_aws.embeddings import BedrockEmbeddings
 from pinecone import Pinecone
 from datetime import datetime
-
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
