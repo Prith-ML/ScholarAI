@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Send, MessageSquare, Plus, Bot, User, Copy, ThumbsUp, ThumbsDown, Sparkles, ArrowUp } from "lucide-react"
 import TextareaAutosize from "react-textarea-autosize"
@@ -120,7 +120,7 @@ const WelcomeScreen = ({ onSuggestionClick }: { onSuggestionClick: (suggestion: 
   )
 }
 
-export default function ChatPage() {
+function ChatPageContent() {
   const searchParams = useSearchParams()
   const [messages, setMessages] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState("")
@@ -373,5 +373,15 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="text-white text-xl">Loading...</div>
+    </div>}>
+      <ChatPageContent />
+    </Suspense>
   )
 }
