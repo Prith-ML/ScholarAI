@@ -1,3 +1,4 @@
+#requirements
 Django==5.2.4
 djangorestframework==3.16.0
 django-cors-headers==4.7.0
@@ -14,4 +15,5 @@ langchain-anthropic>=0.1.0
 langchain-aws>=0.1.0
 pandas==2.1.4
 numpy==1.24.3
-requests==2.31.0 
+requests==2.31.0
+gunicorn==21.2.0 
