@@ -28,9 +28,17 @@ embed = None
 database1_index = None
 database2_index = None
 
+# Don't initialize on module import - will initialize when first needed
+logger.info("AI module imported - components will initialize when first needed")
+
 def initialize_ai_components():
     """Initialize AI components with environment variables"""
     global llm, embed, database1_index, database2_index
+    
+    logger.info("Starting AI components initialization...")
+    logger.info(f"CLAUDE_API_KEY present: {bool(CLAUDE_API_KEY)}")
+    logger.info(f"PINECONE_API_KEY present: {bool(PINECONE_API_KEY)}")
+    logger.info(f"AWS_ACCESS_KEY_ID present: {bool(AWS_ACCESS_KEY_ID)}")
     
     try:
         # Initialize LLM
