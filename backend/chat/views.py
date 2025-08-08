@@ -48,24 +48,37 @@ def chat_session_detail(request, session_id):
 @require_http_methods(["POST"])
 def send_message(request):
     """Send a message and get AI response"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info("=== Starting send_message function ===")
+        logger.info(f"Request body: {request.body}")
+        
         data = json.loads(request.body)
         message_text = data.get('message', '').strip()
         session_id = data.get('session_id')
         
+        logger.info(f"Message text: {message_text}")
+        logger.info(f"Session ID: {session_id}")
+        
         if not message_text:
+            logger.error("Message is empty")
             return JsonResponse({'error': 'Message is required'}, status=400)
         
         # Get or create session
         if session_id:
             try:
                 session = ChatSession.objects.get(id=session_id)
+                logger.info(f"Found existing session: {session.id}")
             except ChatSession.DoesNotExist:
+                logger.warning(f"Session {session_id} not found, creating new session")
                 session = None
         else:
             # Create new session with title from first message
             title = message_text[:50] + "..." if len(message_text) > 50 else message_text
             session = ChatSession.objects.create(title=title)
+            logger.info(f"Created new session: {session.id} with title: {title}")
         
         # Save user message
         user_message = Message.objects.create(
@@ -73,13 +86,15 @@ def send_message(request):
             role='user',
             content=message_text
         )
+        logger.info(f"Saved user message: {user_message.id}")
         
         # Get AI response
+        logger.info("Calling AI chat function...")
         try:
             ai_response = ai_chat(message_text, str(session.id))
+            logger.info("AI chat function completed successfully")
+            logger.info(f"AI response keys: {list(ai_response.keys()) if isinstance(ai_response, dict) else 'Not a dict'}")
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"AI chat error: {str(e)}")
             logger.error(f"Error type: {type(e).__name__}")
             import traceback
