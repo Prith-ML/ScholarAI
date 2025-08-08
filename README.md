@@ -1,6 +1,7 @@
 # 🤖 Agentic Research Assistant
 
 A full-stack AI research assistant with agentic capabilities, built with Next.js, Django, and your existing AI code.
+# Updated for deployment - connecting to Railway backend
 
 ## 🚀 Features
 
