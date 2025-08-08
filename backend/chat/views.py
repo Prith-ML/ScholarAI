@@ -75,7 +75,19 @@ def send_message(request):
         )
         
         # Get AI response
-        ai_response = ai_chat(message_text, str(session.id))
+        try:
+            ai_response = ai_chat(message_text, str(session.id))
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"AI chat error: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return JsonResponse({
+                'error': 'AI service error',
+                'details': str(e)
+            }, status=500)
         
         # Save AI message
         assistant_message = Message.objects.create(
