@@ -43,9 +43,9 @@ def initialize_ai_components():
     try:
         # Initialize LLM
         llm = ChatAnthropic(
-            model_name="claude-3-5-haiku-20241022",
+            model="claude-3-5-haiku-20241022",
             temperature=0.2,
-            anthropic_api_key=CLAUDE_API_KEY
+            api_key=CLAUDE_API_KEY
         )
         logger.info("LLM initialized successfully")
         
