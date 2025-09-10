@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd backend && python manage.py runserver 0.0.0.0:8000",
+    "startCommand": "cd backend && chmod +x deploy.sh && ./deploy.sh && python manage.py runserver 0.0.0.0:$PORT",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
