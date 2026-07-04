@@ -175,6 +175,16 @@ class SaveToNotionViewTests(TestCase):
             timestamp=base_time + timedelta(minutes=1, seconds=30)
         )
 
+        # A later user message in the *same* session, timestamped after the
+        # assistant message, to prove messages after it are excluded (i.e.
+        # that the `timestamp__lt` filter is actually applied).
+        later_user_msg = Message.objects.create(
+            session=session, role='user', content="What about generation?"
+        )
+        Message.objects.filter(id=later_user_msg.id).update(
+            timestamp=base_time + timedelta(minutes=3)
+        )
+
         response = self.client.post(
             f'/api/chat/messages/{assistant_msg.id}/save-to-notion/'
         )
