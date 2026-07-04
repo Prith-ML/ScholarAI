@@ -33,6 +33,11 @@ wheels/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
+
+# The bare `lib/` rule above (for Python venvs) also matches Next.js's
+# frontend/src/lib/ convention - explicitly un-ignore it.
+!frontend/src/lib/
+!frontend/src/lib/**
 *.egg
 MANIFEST
 
