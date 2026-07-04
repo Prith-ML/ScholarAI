@@ -1,9 +1,11 @@
 import json
 import os
 import importlib
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 from django.test import TestCase
+from django.utils import timezone
 from chat.models import ChatSession, Message
 from ai import notion_export
 
@@ -136,3 +138,48 @@ class SaveToNotionViewTests(TestCase):
         self.assertEqual(response.status_code, 502)
         self.assistant_msg.refresh_from_db()
         self.assertIsNone(self.assistant_msg.notion_url)
+
+    @mock_patch('chat.views.notion_export.save_message_to_notion')
+    def test_uses_most_recent_preceding_user_message_in_same_session(self, mock_save):
+        mock_save.return_value = {"notion_url": "https://notion.so/xyz789"}
+
+        base_time = timezone.now() - timedelta(minutes=10)
+        session = ChatSession.objects.create(title="Ordering test session")
+
+        older_user_msg = Message.objects.create(
+            session=session, role='user', content="What is RAG?"
+        )
+        Message.objects.filter(id=older_user_msg.id).update(timestamp=base_time)
+
+        newer_user_msg = Message.objects.create(
+            session=session, role='user', content="How does retrieval work?"
+        )
+        Message.objects.filter(id=newer_user_msg.id).update(
+            timestamp=base_time + timedelta(minutes=1)
+        )
+
+        assistant_msg = Message.objects.create(
+            session=session, role='assistant', content="Retrieval works by..."
+        )
+        Message.objects.filter(id=assistant_msg.id).update(
+            timestamp=base_time + timedelta(minutes=2)
+        )
+
+        # A user message in a different session, timestamped between the two
+        # in-session user messages, to prove the query is scoped by session.
+        other_session = ChatSession.objects.create(title="Other session")
+        other_user_msg = Message.objects.create(
+            session=other_session, role='user', content="What is a transformer?"
+        )
+        Message.objects.filter(id=other_user_msg.id).update(
+            timestamp=base_time + timedelta(minutes=1, seconds=30)
+        )
+
+        response = self.client.post(
+            f'/api/chat/messages/{assistant_msg.id}/save-to-notion/'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_save.assert_called_once_with(
+            "How does retrieval work?", "Retrieval works by..."
+        )
