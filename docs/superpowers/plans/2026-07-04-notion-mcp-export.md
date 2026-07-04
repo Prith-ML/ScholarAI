@@ -448,7 +448,6 @@ Append to `backend/chat/tests.py`:
 
 ```python
 from unittest.mock import patch as mock_patch
-from chat.models import Source  # noqa: F401  (imported for parity with other tests in this file)
 
 
 class SaveToNotionViewTests(TestCase):
