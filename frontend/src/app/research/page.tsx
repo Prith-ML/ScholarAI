@@ -2,26 +2,24 @@
 
 import Link from "next/link"
 import {
-  ArrowLeft,
   BarChart3,
   MessageSquare,
   BookOpen,
-  TrendingUp,
   Clock,
-  Star,
-  Search,
-  Filter,
-  Zap,
-  Target,
-  Brain,
-  Globe,
+  Sparkles,
   Plus,
   Trash2,
+  RefreshCw,
 } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
+import AppShell from "@/components/AppShell"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
 interface DashboardStats {
   research_sessions: number
@@ -37,7 +35,6 @@ interface ResearchSession {
   lastActive: string
   topics: string[]
   status: string
-
 }
 
 interface AIInsight {
@@ -46,9 +43,13 @@ interface AIInsight {
   action: string
 }
 
+const defaultInsights: AIInsight[] = [
+  { title: "Research Focus", description: "Start your first research session to discover your focus areas", action: "Begin research" },
+  { title: "Trending Topics", description: "Explore current trends in AI, machine learning, and technology", action: "Explore topics" },
+  { title: "Knowledge Gaps", description: "Identify areas where you can expand your research", action: "Start exploring" },
+]
+
 export default function ResearchPage() {
-  const [isLoaded, setIsLoaded] = useState(false)
-  const [activeFilter, setActiveFilter] = useState("all")
   const [stats, setStats] = useState<DashboardStats>({
     research_sessions: 0,
     messages_exchanged: 0,
@@ -61,7 +62,6 @@ export default function ResearchPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setIsLoaded(true)
     fetchDashboardData()
   }, [])
 
@@ -70,401 +70,230 @@ export default function ResearchPage() {
       setLoading(true)
       setError(null)
 
-      // Fetch all data in parallel
       const [statsResponse, sessionsResponse, insightsResponse] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/dashboard/stats/`),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/dashboard/sessions/`),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/dashboard/insights/`),
+        fetch(`${API_BASE}/api/chat/dashboard/stats/`),
+        fetch(`${API_BASE}/api/chat/dashboard/sessions/`),
+        fetch(`${API_BASE}/api/chat/dashboard/insights/`),
       ])
 
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json()
-        setStats(statsData)
-      }
-
+      if (statsResponse.ok) setStats(await statsResponse.json())
       if (sessionsResponse.ok) {
         const sessionsData = await sessionsResponse.json()
         setRecentSessions(sessionsData.sessions || [])
       }
-
       if (insightsResponse.ok) {
         const insightsData = await insightsResponse.json()
         setInsights(insightsData.insights || [])
       }
-
     } catch (err) {
-      console.error('Error fetching dashboard data:', err)
-      setError('Failed to load dashboard data. Please try again.')
+      console.error("Error fetching dashboard data:", err)
+      setError("Failed to load dashboard data. Please try again.")
     } finally {
       setLoading(false)
     }
   }
 
   const deleteSession = async (sessionId: number) => {
-    if (!confirm('🗑️ Are you sure you want to delete this research session?\n\nThis will permanently remove all messages and sources from this session. This action cannot be undone.')) {
+    if (!confirm("Delete this research session? This will permanently remove all messages and sources. This cannot be undone.")) {
       return
     }
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/dashboard/sessions/${sessionId}/delete/`, {
-        method: 'DELETE',
-      })
-
+      const response = await fetch(`${API_BASE}/api/chat/dashboard/sessions/${sessionId}/delete/`, { method: "DELETE" })
       if (response.ok) {
-        // Remove the session from the list
-        setRecentSessions(prev => prev.filter(session => session.id !== sessionId))
-        // Refresh dashboard data to update stats
+        setRecentSessions((prev) => prev.filter((session) => session.id !== sessionId))
+        toast.success("Session deleted")
         fetchDashboardData()
       } else {
-        console.error('Failed to delete session')
-        setError('Failed to delete session. Please try again.')
+        toast.error("Failed to delete session")
       }
     } catch (err) {
-      console.error('Error deleting session:', err)
-      setError('Failed to delete session. Please try again.')
+      console.error("Error deleting session:", err)
+      toast.error("Failed to delete session")
     }
   }
 
   const statsConfig = [
-    {
-      title: "Research Sessions",
-      value: stats.research_sessions.toString(),
-      change: stats.research_sessions === 0 ? "Start your first session" : `${stats.research_sessions} active sessions`,
-      icon: BarChart3,
-      color: "from-blue-500 to-cyan-500",
-      trend: "none",
-    },
-    {
-      title: "Messages Exchanged",
-      value: stats.messages_exchanged.toString(),
-      change: stats.messages_exchanged === 0 ? "Begin chatting with AI" : `${stats.messages_exchanged} total messages`,
-      icon: MessageSquare,
-      color: "from-green-500 to-emerald-500",
-      trend: "none",
-    },
-    {
-      title: "Sources Cited",
-      value: stats.sources_cited.toString(),
-      change: stats.sources_cited === 0 ? "AI will find sources for you" : `${stats.sources_cited} sources found`,
-      icon: BookOpen,
-      color: "from-purple-500 to-pink-500",
-      trend: "none",
-    },
-    {
-      title: "Research Hours",
-      value: stats.research_hours.toString(),
-      change: stats.research_hours === 0 ? "Track your research time" : `${stats.research_hours} hours spent`,
-      icon: Clock,
-      color: "from-orange-500 to-red-500",
-      trend: "none",
-    },
-  ]
-
-  // Default insights if none are provided
-  const defaultInsights = [
-    {
-      title: "Research Focus",
-      description: "Start your first research session to discover your focus areas",
-      action: "Begin research",
-    },
-    {
-      title: "Trending Topics",
-      description: "Explore current trends in AI, machine learning, and technology",
-      action: "Explore topics",
-    },
-    {
-      title: "Knowledge Gaps",
-      description: "Identify areas where you can expand your research",
-      action: "Start exploring",
-    },
-    {
-      title: "Global Trends",
-      description: "Stay updated with the latest developments worldwide",
-      action: "Learn more",
-    },
+    { title: "Research Sessions", value: stats.research_sessions.toString(), icon: BarChart3 },
+    { title: "Messages Exchanged", value: stats.messages_exchanged.toString(), icon: MessageSquare },
+    { title: "Sources Cited", value: stats.sources_cited.toString(), icon: BookOpen },
+    { title: "Research Hours", value: stats.research_hours.toString(), icon: Clock },
   ]
 
   const displayInsights = insights.length > 0 ? insights : defaultInsights
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <BarChart3 className="w-8 h-8 text-white" />
-          </div>
-          <p className="text-white/60">Loading dashboard...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-r from-blue-500/30 to-purple-500/30 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-      </div>
-
-      {/* Header */}
-      <div className="relative z-10 border-b border-white/10 glass-effect sticky top-0">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Link href="/">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-white/60 hover:text-white hover:bg-white/10 rounded-xl"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Home
-                </Button>
-              </Link>
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-white" />
-                </div>
+    <AppShell>
+      <div className="flex-1 overflow-y-auto scrollbar-custom">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+          <div className="flex items-center justify-between mb-8">
             <div>
-                  <h1 className="text-xl font-bold text-white">Research Dashboard</h1>
-                  <p className="text-xs text-white/60">Track your research journey</p>
-                </div>
-              </div>
+              <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-white">Research Dashboard</h1>
+              <p className="text-sm text-white/50 mt-1">Track your research journey</p>
             </div>
             <Link href="/chat">
-              <Button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl transition-all duration-300 hover:scale-105">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Start Research
-            </Button>
+              <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
+                <Button className="bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white rounded-xl">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Start Research
+                </Button>
+              </motion.div>
             </Link>
           </div>
-        </div>
-      </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
-        {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-            <p className="text-red-400 text-sm">{error}</p>
-            <Button 
-              onClick={fetchDashboardData}
-              className="mt-2 bg-red-500/20 hover:bg-red-500/30 text-red-400"
-              size="sm"
-            >
-              Retry
-            </Button>
-                </div>
-        )}
+          {error && (
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-between">
+              <p className="text-red-400 text-sm">{error}</p>
+              <Button onClick={fetchDashboardData} size="sm" className="bg-red-500/20 hover:bg-red-500/30 text-red-300">
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                Retry
+              </Button>
+            </div>
+          )}
 
-        {/* Stats Grid */}
-        <div
-          className={`grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 transition-all duration-1000 ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
-        >
-          {statsConfig.map((stat, index) => (
-            <Card
-              key={index}
-              className="glass-effect hover-lift hover:shadow-lg group transition-all duration-500"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <CardContent className="p-6 relative overflow-hidden">
-                <div
-                  className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}
-                />
-
-                <div className="relative z-10 flex items-center justify-between mb-4">
-                  <div
-                    className={`w-12 h-12 rounded-2xl bg-gradient-to-r ${stat.color} p-0.5 group-hover:rotate-6 transition-transform duration-300`}
-                  >
-                    <div className="w-full h-full bg-black rounded-2xl flex items-center justify-center">
-                      <stat.icon className="w-6 h-6 text-white" />
-                </div>
-              </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-white group-hover:gradient-text transition-all duration-300">
-                      {stat.value}
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+            {statsConfig.map((stat, index) => (
+              <motion.div key={stat.title} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
+                <Card className="app-panel h-full">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/20 flex items-center justify-center mb-3">
+                      <stat.icon className="w-[18px] h-[18px] text-violet-300" />
+                    </div>
+                    <p className="text-2xl font-bold text-white">
+                      {loading ? <span className="inline-block w-10 h-6 rounded skeleton-shimmer align-middle" /> : stat.value}
                     </p>
-                </div>
-                </div>
+                    <p className="text-xs text-white/45 mt-1">{stat.title}</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
 
-                <div>
-                  <p className="text-sm text-white/80 font-medium mb-1">{stat.title}</p>
-                  <p className="text-xs text-white/60 flex items-center gap-1">
-                    {stat.change}
-                  </p>
-              </div>
-            </CardContent>
-          </Card>
-          ))}
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Recent Sessions */}
-          <div
-            className={`lg:col-span-2 transition-all duration-1000 delay-300 ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
-          >
-            <Card className="glass-effect">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-blue-400" />
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Recent sessions */}
+            <div className="lg:col-span-2">
+              <Card className="app-panel">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2 text-base">
+                    <Sparkles className="w-4 h-4 text-violet-300" />
                     Recent Research Sessions
                   </CardTitle>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-                      variant="outline"
-                      className="border-white/20 text-white/80 hover:bg-white/10 bg-transparent rounded-xl"
-            >
-                      <Search className="w-4 h-4 mr-2" />
-                      Search
-            </Button>
-            <Button
-              size="sm"
-                      variant="outline"
-                      className="border-white/20 text-white/80 hover:bg-white/10 bg-transparent rounded-xl"
-                    >
-                      <Filter className="w-4 h-4 mr-2" />
-                      Filter
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6">
-                {recentSessions.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <MessageSquare className="w-8 h-8 text-blue-400" />
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="space-y-3">
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="h-20 rounded-xl skeleton-shimmer" />
+                      ))}
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">No Research Sessions Yet</h3>
-                    <p className="text-white/60 mb-6 max-w-md mx-auto">
-                      Start your first research session to begin tracking your AI-powered research journey.
-                    </p>
-                    <Link href="/chat">
-                      <Button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl transition-all duration-300 hover:scale-105">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Start First Session
-            </Button>
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                                         {recentSessions.map((session, index) => (
-                       <div
-                         key={session.id}
-                         className="group p-6 glass-effect rounded-2xl hover-lift hover:shadow-lg transition-all duration-300"
-                         style={{ animationDelay: `${index * 100}ms` }}
-                       >
-                         <div className="flex items-start justify-between mb-4">
-                           <div className="flex-1">
-                             <Link href={`/chat?session_id=${session.id}`}>
-                               <h3 className="font-semibold text-white mb-2 group-hover:gradient-text transition-all duration-300 cursor-pointer">
-                                 {session.title}
-                               </h3>
-                             </Link>
-                             <div className="flex items-center gap-4 text-sm text-white/60 mb-3">
-                               <div className="flex items-center gap-1">
-                                 <MessageSquare className="w-3 h-3" />
-                                 {session.messages} messages
-                               </div>
-                               <div className="flex items-center gap-1">
-                                 <Clock className="w-3 h-3" />
-                                 {session.lastActive}
-                               </div>
-                               <div
-                                 className={`px-2 py-1 rounded-full text-xs ${
-                                   session.status === "active"
-                                     ? "bg-green-500/20 text-green-400"
-                                     : session.status === "completed"
-                                       ? "bg-blue-500/20 text-blue-400"
-                                       : "bg-yellow-500/20 text-yellow-400"
-                                 }`}
-                               >
-                                 {session.status}
-                               </div>
-                             </div>
-                           </div>
-                           <div className="flex items-center gap-2">
-                             <Star className="w-4 h-4 text-white/40 hover:text-yellow-400 cursor-pointer transition-colors duration-200" />
-            <Button
-                               onClick={(e) => {
-                                 e.stopPropagation()
-                                 deleteSession(session.id)
-                               }}
-              size="sm"
-                               variant="ghost"
-                               className="text-white/40 hover:text-red-400 hover:bg-red-500/10 p-2 h-auto transition-colors duration-200"
-            >
-                               <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-                         <div className="flex gap-2">
-                           {session.topics.map((topic: string) => (
-                             <Badge
-                               key={topic}
-                               variant="secondary"
-                               className="bg-white/10 text-white/80 hover:bg-white/20 transition-colors duration-200"
-                             >
-                               {topic}
-                             </Badge>
-                           ))}
-                         </div>
-                       </div>
-                     ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* AI Insights */}
-          <div
-            className={`transition-all duration-1000 delay-500 ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
-          >
-            <Card className="glass-effect mb-6">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-400" />
-                  AI Insights
-                </CardTitle>
-              </CardHeader>
-                <CardContent className="p-6">
-                <div className="space-y-4">
-                  {displayInsights.map((insight, index) => (
-                    <div
-                      key={index}
-                      className="group p-4 glass-effect rounded-xl hover-lift cursor-pointer transition-all duration-300"
-                      style={{ animationDelay: `${index * 100}ms` }}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
-                          <Brain className="w-4 h-4 text-purple-400" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-white mb-1 group-hover:gradient-text transition-all duration-300">
-                            {insight.title}
-                          </h4>
-                          <p className="text-sm text-white/70 mb-2">{insight.description}</p>
-                          <Link href="/chat">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 p-0 h-auto font-medium"
-                            >
-                              {insight.action} →
-                            </Button>
-                          </Link>
-                        </div>
+                  ) : recentSessions.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="w-14 h-14 bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <MessageSquare className="w-6 h-6 text-violet-300" />
                       </div>
+                      <h3 className="font-display text-lg font-bold text-white mb-2">No Research Sessions Yet</h3>
+                      <p className="text-white/50 mb-6 max-w-md mx-auto text-sm">
+                        Start your first research session to begin tracking your AI-powered research journey.
+                      </p>
+                      <Link href="/chat">
+                        <Button className="bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white rounded-xl">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Start First Session
+                        </Button>
+                      </Link>
                     </div>
-                  ))}
-                  </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <AnimatePresence>
+                        {recentSessions.map((session) => (
+                          <motion.div
+                            key={session.id}
+                            layout
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            whileHover={{ y: -2 }}
+                            className="group p-4 app-glass rounded-xl"
+                          >
+                            <div className="flex items-start justify-between mb-3 gap-3">
+                              <Link href={`/chat?session_id=${session.id}`} className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-white text-sm mb-1.5 group-hover:text-violet-300 transition-colors truncate">
+                                  {session.title}
+                                </h3>
+                                <div className="flex items-center gap-3 text-xs text-white/45">
+                                  <span className="flex items-center gap-1">
+                                    <MessageSquare className="w-3 h-3" />
+                                    {session.messages} messages
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {session.lastActive}
+                                  </span>
+                                </div>
+                              </Link>
+                              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    deleteSession(session.id)
+                                  }}
+                                  size="sm"
+                                  variant="ghost"
+                                  aria-label={`Delete session ${session.title}`}
+                                  className="text-white/30 hover:text-red-400 hover:bg-red-500/10 p-2 h-auto shrink-0"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </motion.div>
+                            </div>
+                            {session.topics.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {session.topics.map((topic) => (
+                                  <Badge key={topic} variant="secondary" className="bg-white/[0.06] text-white/60 text-[11px]">
+                                    {topic}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Insights */}
+            <div>
+              <Card className="app-panel">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2 text-base">
+                    <Sparkles className="w-4 h-4 text-fuchsia-300" />
+                    AI Insights
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {displayInsights.map((insight, index) => (
+                    <motion.div key={index} whileHover={{ x: 3 }} className="group p-3.5 app-glass rounded-xl cursor-pointer">
+                      <h4 className="font-medium text-white text-sm mb-1 group-hover:text-violet-300 transition-colors">
+                        {insight.title}
+                      </h4>
+                      <p className="text-xs text-white/55 mb-2 leading-relaxed">{insight.description}</p>
+                      <Link href="/chat">
+                        <span className="text-xs font-medium text-violet-300 hover:text-violet-200">
+                          {insight.action} &rarr;
+                        </span>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   )
-} 
+}

@@ -1,14 +1,21 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter, JetBrains_Mono } from "next/font/google"
+import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google"
 import { Toaster } from "sonner"
 import "./globals.css"
 
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
   variable: "--font-inter",
+})
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-jakarta",
 })
 
 const jetbrainsMono = JetBrains_Mono({
@@ -19,8 +26,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Agentic Research Assistant",
-  description: "AI-powered research assistant with advanced capabilities",
+  title: "ScholarAI",
+  description: "Your AI-powered research command center",
 }
 
 export default function RootLayout({
@@ -30,18 +37,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full dark">
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans bg-black min-h-screen h-full antialiased`}>
+      <body
+        className={`${inter.variable} ${plusJakarta.variable} ${jetbrainsMono.variable} font-sans bg-[#05060a] min-h-screen h-full antialiased`}
+      >
         {children}
         <Toaster
           theme="dark"
           position="bottom-right"
           toastOptions={{
             classNames: {
-              toast: "glass-effect border border-white/10 text-white",
+              toast: "app-glass border border-white/10 text-white",
             },
           }}
         />
       </body>
     </html>
   )
-} 
+}
