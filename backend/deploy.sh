@@ -5,9 +5,6 @@ set -e
 
 echo "Starting deployment process..."
 
-# Navigate to backend directory
-cd backend
-
 # Install dependencies (if not already done)
 echo "Installing dependencies..."
 pip install -r requirements.txt
