@@ -60,7 +60,7 @@ def save_message_to_notion(query: str, content: str) -> dict:
         )
     except Exception as e:
         logger.error(f"Notion export request failed: {e}")
-        return {"error": f"Notion export request failed: {e}"}
+        return {"error": "Notion export request failed. Please try again later."}
 
     if response.stop_reason == "refusal":
         return {"error": "Notion export was declined by the model."}
