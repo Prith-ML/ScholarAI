@@ -152,7 +152,8 @@ def send_message(request):
         return JsonResponse({
             'message': ai_response['response'],
             'sources': ai_response.get('sources', []),
-            'session_id': str(session.id)
+            'session_id': str(session.id),
+            'message_id': assistant_message.id
         })
         
     except Exception as e:
