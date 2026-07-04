@@ -1,5 +1,18 @@
 # Notion MCP Export — Design
 
+> **Addendum (2026-07-04, post-implementation):** the "Open item to verify"
+> flagged below turned out to be a real blocker — Notion's own docs confirm
+> `mcp.notion.com` requires interactive browser OAuth per authorization with
+> no bearer-token or refresh support for headless use. `backend/ai/notion_export.py`
+> was reworked to call Notion's REST API (`POST /v1/pages`) directly with a
+> Notion internal integration token instead of Claude's MCP connector. The
+> env var is now `NOTION_API_TOKEN` (not `NOTION_MCP_TOKEN`), and the module
+> no longer calls Claude at all — it's a deterministic REST call, not an
+> agentic MCP tool-use loop. Everything else in this doc (trigger, auth
+> model of "one shared token", new-page-per-save, error handling) still
+> holds; only the mechanism changed. The rest of this document is left as
+> originally written for historical context.
+
 ## Problem
 
 ScholarAI's research agent produces answers (narrative + citations + follow-up

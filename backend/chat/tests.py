@@ -2,7 +2,6 @@ import json
 import os
 import importlib
 from datetime import timedelta
-from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.utils import timezone
@@ -26,18 +25,10 @@ class SendMessageResponseTests(TestCase):
         self.assertEqual(assistant_message.role, 'assistant')
 
 
-def _make_response(text, stop_reason="end_turn"):
-    return SimpleNamespace(
-        stop_reason=stop_reason,
-        content=[SimpleNamespace(type="text", text=text)],
-    )
-
-
 class SaveMessageToNotionTests(TestCase):
     def setUp(self):
         self.env_patcher = patch.dict(os.environ, {
-            "CLAUDE_API_KEY": "test-claude-key",
-            "NOTION_MCP_TOKEN": "test-notion-token",
+            "NOTION_API_TOKEN": "test-notion-token",
             "NOTION_PARENT_PAGE_ID": "test-parent-page-id",
         })
         self.env_patcher.start()
@@ -47,49 +38,65 @@ class SaveMessageToNotionTests(TestCase):
         self.env_patcher.stop()
         importlib.reload(notion_export)
 
-    @patch("ai.notion_export.anthropic.Anthropic")
-    def test_returns_notion_url_on_success(self, mock_anthropic_cls):
-        mock_client = MagicMock()
-        mock_client.beta.messages.create.return_value = _make_response(
-            "I created the page.\nSAVED: https://notion.so/abc123"
-        )
-        mock_anthropic_cls.return_value = mock_client
+    @patch("ai.notion_export.requests.post")
+    def test_returns_notion_url_on_success(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"url": "https://notion.so/abc123"}
+        mock_post.return_value = mock_response
 
         result = notion_export.save_message_to_notion("What is RAG?", "RAG is...")
 
         self.assertEqual(result, {"notion_url": "https://notion.so/abc123"})
-        _, kwargs = mock_client.beta.messages.create.call_args
-        self.assertIn("mcp-client-2025-11-20", kwargs["betas"])
-        self.assertEqual(kwargs["mcp_servers"][0]["url"], "https://mcp.notion.com/mcp")
-        self.assertEqual(kwargs["mcp_servers"][0]["authorization_token"], "test-notion-token")
-        self.assertIn("test-parent-page-id", kwargs["messages"][0]["content"])
-
-    @patch("ai.notion_export.anthropic.Anthropic")
-    def test_returns_error_when_sentinel_missing(self, mock_anthropic_cls):
-        mock_client = MagicMock()
-        mock_client.beta.messages.create.return_value = _make_response(
-            "Something went wrong, I could not create the page."
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer test-notion-token")
+        self.assertEqual(kwargs["headers"]["Notion-Version"], "2022-06-28")
+        self.assertEqual(kwargs["json"]["parent"], {"page_id": "test-parent-page-id"})
+        self.assertEqual(
+            kwargs["json"]["properties"]["title"]["title"][0]["text"]["content"],
+            "What is RAG?",
         )
-        mock_anthropic_cls.return_value = mock_client
+
+    @patch("ai.notion_export.requests.post")
+    def test_returns_error_on_non_2xx_status(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.text = "Unauthorized"
+        mock_post.return_value = mock_response
 
         result = notion_export.save_message_to_notion("What is RAG?", "RAG is...")
 
         self.assertIn("error", result)
 
-    @patch("ai.notion_export.anthropic.Anthropic")
-    def test_returns_error_on_refusal(self, mock_anthropic_cls):
-        mock_client = MagicMock()
-        mock_client.beta.messages.create.return_value = _make_response(
-            "", stop_reason="refusal"
-        )
-        mock_anthropic_cls.return_value = mock_client
+    @patch("ai.notion_export.requests.post")
+    def test_returns_error_when_response_missing_url(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {}
+        mock_post.return_value = mock_response
+
+        result = notion_export.save_message_to_notion("What is RAG?", "RAG is...")
+
+        self.assertIn("error", result)
+
+    @patch("ai.notion_export.requests.post")
+    def test_returns_error_on_request_exception(self, mock_post):
+        import requests
+        mock_post.side_effect = requests.ConnectionError("boom")
 
         result = notion_export.save_message_to_notion("What is RAG?", "RAG is...")
 
         self.assertIn("error", result)
 
     def test_returns_error_when_notion_token_missing(self):
-        with patch.dict(os.environ, {"NOTION_MCP_TOKEN": ""}):
+        with patch.dict(os.environ, {"NOTION_API_TOKEN": ""}):
+            importlib.reload(notion_export)
+            result = notion_export.save_message_to_notion("q", "c")
+            self.assertIn("error", result)
+        importlib.reload(notion_export)
+
+    def test_returns_error_when_parent_page_id_missing(self):
+        with patch.dict(os.environ, {"NOTION_PARENT_PAGE_ID": ""}):
             importlib.reload(notion_export)
             result = notion_export.save_message_to_notion("q", "c")
             self.assertIn("error", result)
