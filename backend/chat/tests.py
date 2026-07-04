@@ -158,6 +158,18 @@ class SaveToNotionViewTests(TestCase):
             timestamp=base_time + timedelta(minutes=1)
         )
 
+        # A non-user message in the *same* session, timestamped between the
+        # newer in-session user message and the assistant message being
+        # saved, to prove the `role='user'` filter is actually applied: if
+        # it were dropped, this message would outrank newer_user_msg under
+        # `-timestamp` ordering and get selected instead.
+        non_user_msg = Message.objects.create(
+            session=session, role='assistant', content="(interjection)"
+        )
+        Message.objects.filter(id=non_user_msg.id).update(
+            timestamp=base_time + timedelta(minutes=1, seconds=45)
+        )
+
         assistant_msg = Message.objects.create(
             session=session, role='assistant', content="Retrieval works by..."
         )
