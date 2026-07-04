@@ -103,6 +103,43 @@ class SaveMessageToNotionTests(TestCase):
         importlib.reload(notion_export)
 
 
+class ChunkTextTests(TestCase):
+    """
+    Notion validates rich_text content length in UTF-16 code units (like
+    JavaScript), not Python code points. Characters outside the Basic
+    Multilingual Plane (most emoji) are 1 Python character but 2 UTF-16
+    code units, so a naive Python-length-based chunker can produce a
+    chunk Notion rejects as too long even though len() said it fit.
+    """
+
+    def _utf16_len(self, s):
+        return len(s.encode("utf-16-le")) // 2
+
+    def test_chunk_never_exceeds_limit_in_utf16_code_units(self):
+        # 1999 ASCII chars + one astral-plane emoji (2 UTF-16 units) sitting
+        # exactly on the old naive boundary - Python len() reports 2000,
+        # but the real UTF-16 length is 2001.
+        text = ("a" * 1999) + "\U0001F50D"  # U+1F50D = magnifying glass emoji
+        self.assertEqual(len(text), 2000)
+        self.assertEqual(self._utf16_len(text), 2001)
+
+        chunks = notion_export._chunk_text(text, limit=2000)
+
+        for chunk in chunks:
+            self.assertLessEqual(self._utf16_len(chunk), 2000)
+        self.assertEqual("".join(chunks), text)
+
+    def test_chunk_reassembles_to_original_text(self):
+        text = "hello 🔍 world 📚 " * 300
+        chunks = notion_export._chunk_text(text, limit=2000)
+        self.assertEqual("".join(chunks), text)
+        for chunk in chunks:
+            self.assertLessEqual(self._utf16_len(chunk), 2000)
+
+    def test_empty_text_returns_single_empty_chunk(self):
+        self.assertEqual(notion_export._chunk_text(""), [""])
+
+
 from unittest.mock import patch as mock_patch
 
 

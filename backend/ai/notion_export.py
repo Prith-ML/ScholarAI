@@ -23,10 +23,32 @@ _MAX_BLOCKS = 100
 
 
 def _chunk_text(text: str, limit: int = _BLOCK_TEXT_LIMIT) -> list:
-    """Split text into Notion rich_text-sized chunks (max 2000 chars each)."""
+    """
+    Split text into chunks that fit Notion's rich_text length limit.
+
+    Notion validates content length in UTF-16 code units (like JavaScript),
+    not Python code points. Characters outside the Basic Multilingual Plane
+    (most emoji) are 1 Python character but 2 UTF-16 code units, so slicing
+    by Python string length alone can produce a chunk Notion rejects as too
+    long even though len() said it fit within the limit.
+    """
     if not text:
         return [""]
-    return [text[i:i + limit] for i in range(0, len(text), limit)]
+
+    chunks = []
+    current = []
+    current_len = 0
+    for ch in text:
+        ch_len = len(ch.encode('utf-16-le')) // 2
+        if current_len + ch_len > limit and current:
+            chunks.append("".join(current))
+            current = []
+            current_len = 0
+        current.append(ch)
+        current_len += ch_len
+    if current:
+        chunks.append("".join(current))
+    return chunks
 
 
 def save_message_to_notion(query: str, content: str) -> dict:
