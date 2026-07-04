@@ -16,6 +16,7 @@ from datetime import timedelta
 import json
 import uuid
 from ai.django_agent_runner import chat as ai_chat
+from ai import notion_export
 
 # Import the Django agent runner
 try:
@@ -158,6 +159,33 @@ def send_message(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def save_to_notion(request, message_id):
+    """Save an assistant message to Notion via the MCP connector."""
+    try:
+        message = Message.objects.get(id=message_id, role='assistant')
+    except Message.DoesNotExist:
+        return JsonResponse({'error': 'Message not found'}, status=404)
+
+    if message.notion_url:
+        return JsonResponse({'notion_url': message.notion_url})
+
+    user_message = message.session.messages.filter(
+        role='user', timestamp__lt=message.timestamp
+    ).order_by('-timestamp').first()
+    query = user_message.content if user_message else message.content[:100]
+
+    result = notion_export.save_message_to_notion(query, message.content)
+
+    if 'error' in result:
+        return JsonResponse({'error': result['error']}, status=502)
+
+    message.notion_url = result['notion_url']
+    message.save(update_fields=['notion_url'])
+
+    return JsonResponse({'notion_url': message.notion_url})
 
 def update_session_topics(session, message_text):
     """Extract and update session topics based on message content"""

@@ -92,3 +92,47 @@ class SaveMessageToNotionTests(TestCase):
             result = notion_export.save_message_to_notion("q", "c")
             self.assertIn("error", result)
         importlib.reload(notion_export)
+
+
+from unittest.mock import patch as mock_patch
+
+
+class SaveToNotionViewTests(TestCase):
+    def setUp(self):
+        self.session = ChatSession.objects.create(title="Test session")
+        self.user_msg = Message.objects.create(
+            session=self.session, role='user', content="What is RAG?"
+        )
+        self.assistant_msg = Message.objects.create(
+            session=self.session, role='assistant', content="RAG is..."
+        )
+
+    def test_404_when_message_missing(self):
+        response = self.client.post('/api/chat/messages/999999/save-to-notion/')
+        self.assertEqual(response.status_code, 404)
+
+    @mock_patch('chat.views.notion_export.save_message_to_notion')
+    def test_saves_notion_url_on_success(self, mock_save):
+        mock_save.return_value = {"notion_url": "https://notion.so/abc123"}
+
+        response = self.client.post(
+            f'/api/chat/messages/{self.assistant_msg.id}/save-to-notion/'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"notion_url": "https://notion.so/abc123"})
+        mock_save.assert_called_once_with("What is RAG?", "RAG is...")
+        self.assistant_msg.refresh_from_db()
+        self.assertEqual(self.assistant_msg.notion_url, "https://notion.so/abc123")
+
+    @mock_patch('chat.views.notion_export.save_message_to_notion')
+    def test_returns_502_on_notion_failure(self, mock_save):
+        mock_save.return_value = {"error": "Notion export request failed: boom"}
+
+        response = self.client.post(
+            f'/api/chat/messages/{self.assistant_msg.id}/save-to-notion/'
+        )
+
+        self.assertEqual(response.status_code, 502)
+        self.assistant_msg.refresh_from_db()
+        self.assertIsNone(self.assistant_msg.notion_url)

@@ -6,6 +6,7 @@ urlpatterns = [
     path('sessions/<int:session_id>/', views.chat_session_detail, name='chat_session_detail'),
     path('sessions/<int:session_id>/delete/', views.delete_session, name='delete_session'),
     path('send/', views.send_message, name='send_message'),
+    path('messages/<int:message_id>/save-to-notion/', views.save_to_notion, name='save_to_notion'),
     path('health/', views.health_check, name='health_check'),
     
     # Dashboard endpoints
