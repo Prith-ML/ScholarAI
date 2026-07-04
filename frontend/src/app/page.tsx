@@ -12,9 +12,10 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react"
-import { motion } from "framer-motion"
+import { motion, useReducedMotion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { ShaderAnimation } from "@/components/ui/shader-animation"
 import AppShell from "@/components/AppShell"
 
 const features = [
@@ -50,12 +51,35 @@ const item = {
 }
 
 export default function HomePage() {
+  const reduceMotion = useReducedMotion()
+
   return (
     <AppShell>
       <div className="flex-1 overflow-y-auto scrollbar-custom">
-        <motion.div variants={container} initial="hidden" animate="show" className="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
-          {/* Hero */}
-          <motion.div variants={item} className="text-center mb-20">
+        {/* Hero with animated shader background */}
+        <div className="relative min-h-screen flex items-center overflow-hidden">
+          <div className="absolute inset-0 z-0" aria-hidden="true">
+            {reduceMotion ? (
+              // Static gradient stand-in - the shader is a continuous WebGL
+              // animation loop with no built-in reduced-motion handling.
+              <div className="w-full h-full bg-gradient-to-br from-indigo-950 via-[#05060a] to-fuchsia-950" />
+            ) : (
+              <ShaderAnimation />
+            )}
+          </div>
+          {/* Scrim so hero text stays readable over the bright shader lines,
+              fading into the app's solid background at the bottom edge. */}
+          <div
+            className="absolute inset-0 z-[1] bg-gradient-to-b from-black/50 via-black/60 to-[#05060a]"
+            aria-hidden="true"
+          />
+
+          <motion.div
+            variants={item}
+            initial="hidden"
+            animate="show"
+            className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 py-24 text-center"
+          >
             <div className="inline-flex items-center gap-2 app-glass rounded-full px-4 py-1.5 mb-8 text-xs font-medium text-white/70">
               <Sparkles className="w-3.5 h-3.5 text-violet-300" />
               Agentic research, grounded in real sources
@@ -99,8 +123,15 @@ export default function HomePage() {
               </Link>
             </div>
           </motion.div>
+        </div>
 
-          {/* Feature bento grid */}
+        {/* Feature bento grid */}
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-24"
+        >
           <motion.div variants={item} className="grid sm:grid-cols-2 gap-4">
             {features.map((feature) => (
               <motion.div key={feature.title} whileHover={{ y: -4 }}>
