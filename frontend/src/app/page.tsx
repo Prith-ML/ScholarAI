@@ -93,9 +93,7 @@ export default function HomePage() {
             </div>
 
             <h1 className="font-display text-4xl sm:text-6xl md:text-7xl font-extrabold text-white mb-6 tracking-tight leading-[1.05]">
-              Your AI research
-              <br />
-              <span className="gradient-text">command center</span>
+              <span className="gradient-text">ScholarAI</span>
             </h1>
 
             <p className="text-lg sm:text-xl text-white/60 max-w-2xl mx-auto leading-relaxed mb-10">
