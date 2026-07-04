@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useRef, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Send, MessageSquare, Plus, Bot, User, Copy, ThumbsUp, ThumbsDown, Sparkles, ArrowUp } from "lucide-react"
+import { Send, MessageSquare, Plus, Bot, User, Copy, ThumbsUp, ThumbsDown, Sparkles, ArrowUp, BookmarkPlus, BookmarkCheck } from "lucide-react"
 import TextareaAutosize from "react-textarea-autosize"
 import ReactMarkdown from "react-markdown"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ interface Message {
   content: string
   timestamp: Date
   sources?: any
+  notionUrl?: string
 }
 
 const TypingIndicator = () => (
@@ -35,31 +36,80 @@ const TypingIndicator = () => (
   </div>
 )
 
-const MessageActions = ({ message }: { message: Message }) => (
-  <div className="flex items-center gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
-    <Button
-      size="sm"
-      className="glass-effect text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 hover-lift"
-    >
-      <Copy className="w-3 h-3 mr-2" />
-      Copy
-    </Button>
-    <Button
-      size="sm"
-      className="glass-effect text-white/60 hover:text-green-400 hover:bg-green-500/10 rounded-xl transition-all duration-200 hover-lift"
-    >
-      <ThumbsUp className="w-3 h-3 mr-2" />
-      Good
-    </Button>
-    <Button
-      size="sm"
-      className="glass-effect text-white/60 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all duration-200 hover-lift"
-    >
-      <ThumbsDown className="w-3 h-3 mr-2" />
-      Bad
-    </Button>
-  </div>
-)
+const MessageActions = ({ message }: { message: Message }) => {
+  const [notionUrl, setNotionUrl] = useState<string | null>(message.notionUrl ?? null)
+  const [saving, setSaving] = useState(false)
+  const [notionError, setNotionError] = useState<string | null>(null)
+
+  const saveToNotion = async () => {
+    setSaving(true)
+    setNotionError(null)
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/chat/messages/${message.id}/save-to-notion/`,
+        { method: "POST" }
+      )
+      const data = await response.json()
+      if (!response.ok || data.error) {
+        setNotionError(data.error || "Failed to save to Notion")
+      } else {
+        setNotionUrl(data.notion_url)
+      }
+    } catch (err) {
+      setNotionError("Failed to save to Notion")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+      <Button
+        size="sm"
+        className="glass-effect text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 hover-lift"
+      >
+        <Copy className="w-3 h-3 mr-2" />
+        Copy
+      </Button>
+      <Button
+        size="sm"
+        className="glass-effect text-white/60 hover:text-green-400 hover:bg-green-500/10 rounded-xl transition-all duration-200 hover-lift"
+      >
+        <ThumbsUp className="w-3 h-3 mr-2" />
+        Good
+      </Button>
+      <Button
+        size="sm"
+        className="glass-effect text-white/60 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all duration-200 hover-lift"
+      >
+        <ThumbsDown className="w-3 h-3 mr-2" />
+        Bad
+      </Button>
+      {notionUrl ? (
+        <a href={notionUrl} target="_blank" rel="noopener noreferrer">
+          <Button
+            size="sm"
+            className="glass-effect text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 hover-lift"
+          >
+            <BookmarkCheck className="w-3 h-3 mr-2" />
+            View in Notion
+          </Button>
+        </a>
+      ) : (
+        <Button
+          size="sm"
+          disabled={saving}
+          onClick={saveToNotion}
+          className="glass-effect text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 hover-lift"
+        >
+          <BookmarkPlus className="w-3 h-3 mr-2" />
+          {saving ? "Saving..." : "Save to Notion"}
+        </Button>
+      )}
+      {notionError && <span className="text-xs text-red-400">{notionError}</span>}
+    </div>
+  )
+}
 
 const WelcomeScreen = ({ onSuggestionClick }: { onSuggestionClick: (suggestion: string) => void }) => {
   const suggestions = [
@@ -184,7 +234,7 @@ function ChatPageContent() {
 
       const data = await response.json()
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: data.message_id ? data.message_id.toString() : (Date.now() + 1).toString(),
         role: "assistant",
         content: data.message,
         timestamp: new Date(),
