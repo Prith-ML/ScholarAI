@@ -24,6 +24,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { DottedSurface } from "@/components/ui/dotted-surface"
 import AppShell from "@/components/AppShell"
 
 interface Message {
@@ -261,6 +262,7 @@ function ChatPageContent() {
   const [showScrollButton, setShowScrollButton] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const reduceMotion = useReducedMotion()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -353,9 +355,25 @@ function ChatPageContent() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh]">
+    <div className="relative flex flex-col h-[100dvh] overflow-hidden">
+      {/* Ambient background - confined to this chat column (via the parent's
+          `relative`, which overrides the component's default fixed/viewport
+          positioning), not the sidebar. Skipped under reduced-motion, same as
+          the home page's shader background - this is a continuous WebGL
+          animation loop with no built-in reduced-motion handling. */}
+      {!reduceMotion && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+          className="absolute inset-0 z-0"
+        >
+          <DottedSurface className="absolute inset-0 opacity-30" />
+        </motion.div>
+      )}
+
       {/* Slim session toolbar */}
-      <div className="shrink-0 border-b border-white/[0.06] app-glass">
+      <div className="relative z-10 shrink-0 border-b border-white/[0.06] app-glass">
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <AnimatePresence mode="wait">
@@ -388,7 +406,7 @@ function ChatPageContent() {
       </div>
 
       {/* Message area */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="relative z-10 flex-1 overflow-hidden">
         {messages.length === 0 ? (
           <WelcomeScreen onSuggestionClick={(suggestion) => sendMessage(suggestion)} />
         ) : (
@@ -464,7 +482,7 @@ function ChatPageContent() {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-white/[0.06] app-glass">
+      <div className="relative z-10 shrink-0 border-t border-white/[0.06] app-glass">
         <div className="max-w-3xl mx-auto p-4 sm:p-5">
           <div className="relative app-panel glow-border rounded-2xl focus-within:shadow-lg focus-within:shadow-indigo-500/10">
             <TextareaAutosize
