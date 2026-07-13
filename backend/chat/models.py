@@ -10,7 +10,7 @@ class ChatSession(models.Model):
         ('paused', 'Paused'),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     topics = models.JSONField(default=list, blank=True)  # Store research topics as JSON
@@ -79,7 +79,7 @@ class Source(models.Model):
 
 class ResearchStats(models.Model):
     """Model to store aggregated research statistics"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     total_sessions = models.IntegerField(default=0)
     total_messages = models.IntegerField(default=0)
     total_sources = models.IntegerField(default=0)

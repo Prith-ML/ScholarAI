@@ -5,7 +5,9 @@ from datetime import timedelta
 from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.utils import timezone
-from chat.models import ChatSession, Message
+from django.db import IntegrityError
+from django.contrib.auth.models import User
+from chat.models import ChatSession, Message, ResearchStats
 from ai import notion_export
 
 
@@ -249,3 +251,13 @@ class SaveToNotionViewTests(TestCase):
         mock_save.assert_called_once_with(
             "How does retrieval work?", "Retrieval works by..."
         )
+
+
+class UserFieldRequiredTests(TestCase):
+    def test_chat_session_requires_user(self):
+        with self.assertRaises(IntegrityError):
+            ChatSession.objects.create(title='No owner')
+
+    def test_research_stats_requires_user(self):
+        with self.assertRaises(IntegrityError):
+            ResearchStats.objects.create()
