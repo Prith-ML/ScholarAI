@@ -83,3 +83,45 @@ class LoginTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 401)
+
+
+class TokenRefreshTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice@example.com', email='alice@example.com', password='correct horse battery staple'
+        )
+
+    def _login(self):
+        response = self.client.post(
+            '/api/auth/login/',
+            data={'email': 'alice@example.com', 'password': 'correct horse battery staple'},
+            content_type='application/json',
+        )
+        self.client.cookies['refresh_token'] = response.cookies['refresh_token'].value
+        return response
+
+    def test_refresh_with_valid_cookie_returns_new_access_token(self):
+        self._login()
+
+        response = self.client.post('/api/auth/token/refresh/', content_type='application/json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('access', response.json())
+        self.assertIn('refresh_token', response.cookies)
+
+    def test_refresh_rotates_the_cookie_and_invalidates_the_old_one(self):
+        self._login()
+        old_cookie_value = self.client.cookies['refresh_token'].value
+
+        first = self.client.post('/api/auth/token/refresh/', content_type='application/json')
+        self.client.cookies['refresh_token'] = old_cookie_value  # simulate reusing the old (now rotated-out) token
+
+        second = self.client.post('/api/auth/token/refresh/', content_type='application/json')
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 401)
+
+    def test_refresh_without_cookie_returns_401(self):
+        response = self.client.post('/api/auth/token/refresh/', content_type='application/json')
+
+        self.assertEqual(response.status_code, 401)
