@@ -8,9 +8,7 @@ from .serializers import ChatSessionSerializer, ChatMessageSerializer, MessageSe
 import sys
 import os
 from django.shortcuts import render
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse, Http404
 from django.utils import timezone
 from datetime import timedelta
 import json
@@ -45,93 +43,40 @@ def chat_session_detail(request, session_id):
     serializer = ChatSessionSerializer(session)
     return Response(serializer.data)
 
-@csrf_exempt
-@require_http_methods(["POST"])
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def send_message(request):
     """Send a message and get AI response"""
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
-        logger.info("=== Starting send_message function ===")
-        logger.info(f"Request body: {request.body}")
-        
-        data = json.loads(request.body)
-        message_text = data.get('message', '').strip()
-        session_id = data.get('session_id')
-        
-        logger.info(f"Message text: {message_text}")
-        logger.info(f"Session ID: {session_id}")
-        
+        message_text = (request.data.get('message') or '').strip()
+        session_id = request.data.get('session_id')
+
         if not message_text:
-            logger.error("Message is empty")
-            return JsonResponse({'error': 'Message is required'}, status=400)
-        
-        # Get or create session
-        logger.info("Starting session creation/retrieval...")
+            return Response({'error': 'Message is required'}, status=400)
+
         if session_id:
-            try:
-                logger.info(f"Looking for existing session: {session_id}")
-                session = ChatSession.objects.get(id=session_id)
-                logger.info(f"Found existing session: {session.id}")
-            except ChatSession.DoesNotExist:
-                logger.warning(f"Session {session_id} not found, creating new session")
-                session = None
+            session = get_object_or_404(ChatSession, id=session_id, user=request.user)
         else:
-            # Create new session with title from first message
-            logger.info("Creating new session...")
             title = message_text[:50] + "..." if len(message_text) > 50 else message_text
-            logger.info(f"Session title will be: {title}")
-            try:
-                session = ChatSession.objects.create(title=title)
-                logger.info(f"Created new session: {session.id} with title: {title}")
-            except Exception as e:
-                logger.error(f"Error creating session: {str(e)}")
-                logger.error(f"Error type: {type(e).__name__}")
-                import traceback
-                logger.error(f"Session creation traceback: {traceback.format_exc()}")
-                return JsonResponse({'error': 'Session creation failed', 'details': str(e)}, status=500)
-        
-        # Save user message
-        logger.info("Starting user message creation...")
-        try:
-            user_message = Message.objects.create(
-                session=session,
-                role='user',
-                content=message_text
-            )
-            logger.info(f"Saved user message: {user_message.id}")
-        except Exception as e:
-            logger.error(f"Error creating user message: {str(e)}")
-            logger.error(f"Error type: {type(e).__name__}")
-            import traceback
-            logger.error(f"User message creation traceback: {traceback.format_exc()}")
-            return JsonResponse({'error': 'Message creation failed', 'details': str(e)}, status=500)
-        
-        # Get AI response
-        logger.info("Calling AI chat function...")
+            session = ChatSession.objects.create(title=title, user=request.user)
+
+        Message.objects.create(session=session, role='user', content=message_text)
+
         try:
             ai_response = ai_chat(message_text, str(session.id))
-            logger.info("AI chat function completed successfully")
-            logger.info(f"AI response keys: {list(ai_response.keys()) if isinstance(ai_response, dict) else 'Not a dict'}")
         except Exception as e:
             logger.error(f"AI chat error: {str(e)}")
-            logger.error(f"Error type: {type(e).__name__}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return JsonResponse({
-                'error': 'AI service error',
-                'details': str(e)
-            }, status=500)
-        
-        # Save AI message
+            return Response({'error': 'AI service error', 'details': str(e)}, status=500)
+
         assistant_message = Message.objects.create(
             session=session,
             role='assistant',
             content=ai_response['response']
         )
-        
-        # Save sources if provided
+
         if ai_response.get('sources'):
             for source_data in ai_response['sources']:
                 Source.objects.create(
@@ -142,32 +87,29 @@ def send_message(request):
                     source_type=source_data.get('source_type', 'web'),
                     relevance_score=source_data.get('relevance_score', 0.0)
                 )
-        
-        # Update session topics based on message content
+
         update_session_topics(session, message_text)
-        
-        # Update research stats
-        stats = ResearchStats.get_or_create_stats()
+
+        stats = ResearchStats.get_or_create_stats(user=request.user)
         stats.update_stats()
-        
-        return JsonResponse({
+
+        return Response({
             'message': ai_response['response'],
             'sources': ai_response.get('sources', []),
             'session_id': str(session.id),
             'message_id': assistant_message.id
         })
-        
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
-@csrf_exempt
-@require_http_methods(["POST"])
+    except Http404:
+        raise
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def save_to_notion(request, message_id):
     """Save an assistant message to Notion via the MCP connector."""
-    try:
-        message = Message.objects.get(id=message_id, role='assistant')
-    except Message.DoesNotExist:
-        return JsonResponse({'error': 'Message not found'}, status=404)
+    message = get_object_or_404(Message, id=message_id, role='assistant', session__user=request.user)
 
     if message.notion_url:
         return JsonResponse({'notion_url': message.notion_url})
@@ -232,34 +174,35 @@ def health_check(request):
     """Health check endpoint"""
     return Response({'status': 'healthy', 'message': 'Backend is running'})
 
-@require_http_methods(["GET"])
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def dashboard_stats(request):
     """Get dashboard statistics"""
     try:
-        stats = ResearchStats.get_or_create_stats()
+        stats = ResearchStats.get_or_create_stats(user=request.user)
         stats.update_stats()
-        
-        return JsonResponse({
+
+        return Response({
             'research_sessions': stats.total_sessions,
             'messages_exchanged': stats.total_messages,
             'sources_cited': stats.total_sources,
             'research_hours': stats.total_research_hours,
         })
-        
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
-@require_http_methods(["GET"])
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def recent_sessions(request):
     """Get recent research sessions"""
     try:
-        sessions = ChatSession.objects.all().order_by('-updated_at')[:10]
-        
+        sessions = ChatSession.objects.filter(user=request.user).order_by('-updated_at')[:10]
+
         sessions_data = []
         for session in sessions:
-            # Calculate time ago
             time_ago = get_time_ago(session.updated_at)
-            
+
             sessions_data.append({
                 'id': session.id,
                 'title': session.title,
@@ -269,39 +212,38 @@ def recent_sessions(request):
                 'status': session.status,
 
             })
-        
-        return JsonResponse({'sessions': sessions_data})
-        
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
-@csrf_exempt
-@require_http_methods(["DELETE"])
+        return Response({'sessions': sessions_data})
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
 def delete_session_dashboard(request, session_id):
     """Delete a chat session from dashboard"""
     try:
-        session = ChatSession.objects.get(id=session_id)
+        session = get_object_or_404(ChatSession, id=session_id, user=request.user)
         session.delete()
-        
-        # Update research stats after deletion
-        stats = ResearchStats.get_or_create_stats()
-        stats.update_stats()
-        
-        return JsonResponse({'message': 'Session deleted successfully'})
-        
-    except ChatSession.DoesNotExist:
-        return JsonResponse({'error': 'Session not found'}, status=404)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
-@require_http_methods(["GET"])
+        stats = ResearchStats.get_or_create_stats(user=request.user)
+        stats.update_stats()
+
+        return Response({'message': 'Session deleted successfully'})
+
+    except Http404:
+        raise
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def ai_insights(request):
     """Get AI-generated insights based on user activity"""
     try:
-        # Get recent activity
-        recent_sessions = ChatSession.objects.all().order_by('-updated_at')[:5]
-        recent_messages = Message.objects.all().order_by('-timestamp')[:20]
-        
+        recent_sessions = ChatSession.objects.filter(user=request.user).order_by('-updated_at')[:5]
+        recent_messages = Message.objects.filter(session__user=request.user).order_by('-timestamp')[:20]
+
         # Analyze topics
         all_topics = []
         for session in recent_sessions:
@@ -356,10 +298,10 @@ def ai_insights(request):
             'action': 'Learn more'
         })
         
-        return JsonResponse({'insights': insights})
-        
+        return Response({'insights': insights})
+
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return Response({'error': str(e)}, status=500)
 
 def get_time_ago(timestamp):
     """Convert timestamp to human-readable time ago"""

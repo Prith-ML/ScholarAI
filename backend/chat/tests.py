@@ -7,11 +7,19 @@ from django.test import TestCase
 from django.utils import timezone
 from django.db import IntegrityError
 from django.contrib.auth.models import User
+from rest_framework.test import APIClient
 from chat.models import ChatSession, Message, ResearchStats
 from ai import notion_export
 
 
 class SendMessageResponseTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice@example.com', email='alice@example.com', password='pw12345'
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
     def test_response_includes_assistant_message_id(self):
         response = self.client.post(
             '/api/chat/send/',
@@ -25,6 +33,30 @@ class SendMessageResponseTests(TestCase):
 
         assistant_message = Message.objects.get(id=data['message_id'])
         self.assertEqual(assistant_message.role, 'assistant')
+        self.assertEqual(assistant_message.session.user, self.user)
+
+    def test_requires_authentication(self):
+        anonymous_client = APIClient()
+
+        response = anonymous_client.post(
+            '/api/chat/send/',
+            data=json.dumps({'message': 'Hello'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_cannot_send_into_another_users_session(self):
+        other_user = User.objects.create_user(username='bob@example.com', email='bob@example.com', password='pw12345')
+        other_session = ChatSession.objects.create(title='Bob session', user=other_user)
+
+        response = self.client.post(
+            '/api/chat/send/',
+            data=json.dumps({'message': 'Hello', 'session_id': str(other_session.id)}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 404)
 
 
 class SaveMessageToNotionTests(TestCase):
@@ -147,7 +179,12 @@ from unittest.mock import patch as mock_patch
 
 class SaveToNotionViewTests(TestCase):
     def setUp(self):
-        self.session = ChatSession.objects.create(title="Test session")
+        self.user = User.objects.create_user(
+            username='alice@example.com', email='alice@example.com', password='pw12345'
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.session = ChatSession.objects.create(title="Test session", user=self.user)
         self.user_msg = Message.objects.create(
             session=self.session, role='user', content="What is RAG?"
         )
@@ -158,6 +195,22 @@ class SaveToNotionViewTests(TestCase):
     def test_404_when_message_missing(self):
         response = self.client.post('/api/chat/messages/999999/save-to-notion/')
         self.assertEqual(response.status_code, 404)
+
+    def test_404_when_message_belongs_to_another_user(self):
+        other_user = User.objects.create_user(username='bob@example.com', email='bob@example.com', password='pw12345')
+        other_session = ChatSession.objects.create(title='Bob session', user=other_user)
+        other_msg = Message.objects.create(session=other_session, role='assistant', content='Not yours')
+
+        response = self.client.post(f'/api/chat/messages/{other_msg.id}/save-to-notion/')
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_requires_authentication(self):
+        anonymous_client = APIClient()
+
+        response = anonymous_client.post(f'/api/chat/messages/{self.assistant_msg.id}/save-to-notion/')
+
+        self.assertEqual(response.status_code, 401)
 
     @mock_patch('chat.views.notion_export.save_message_to_notion')
     def test_saves_notion_url_on_success(self, mock_save):
@@ -190,7 +243,7 @@ class SaveToNotionViewTests(TestCase):
         mock_save.return_value = {"notion_url": "https://notion.so/xyz789"}
 
         base_time = timezone.now() - timedelta(minutes=10)
-        session = ChatSession.objects.create(title="Ordering test session")
+        session = ChatSession.objects.create(title="Ordering test session", user=self.user)
 
         older_user_msg = Message.objects.create(
             session=session, role='user', content="What is RAG?"
@@ -225,7 +278,7 @@ class SaveToNotionViewTests(TestCase):
 
         # A user message in a different session, timestamped between the two
         # in-session user messages, to prove the query is scoped by session.
-        other_session = ChatSession.objects.create(title="Other session")
+        other_session = ChatSession.objects.create(title="Other session", user=self.user)
         other_user_msg = Message.objects.create(
             session=other_session, role='user', content="What is a transformer?"
         )
@@ -261,3 +314,46 @@ class UserFieldRequiredTests(TestCase):
     def test_research_stats_requires_user(self):
         with self.assertRaises(IntegrityError):
             ResearchStats.objects.create()
+
+
+class DashboardIsolationTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='alice@example.com', email='alice@example.com', password='pw12345')
+        self.other_user = User.objects.create_user(username='bob@example.com', email='bob@example.com', password='pw12345')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        self.my_session = ChatSession.objects.create(title='Mine', user=self.user)
+        Message.objects.create(session=self.my_session, role='user', content='hi')
+        self.other_session = ChatSession.objects.create(title='Not mine', user=self.other_user)
+        Message.objects.create(session=self.other_session, role='user', content='hi')
+
+    def test_recent_sessions_only_shows_own_sessions(self):
+        response = self.client.get('/api/chat/dashboard/sessions/')
+
+        self.assertEqual(response.status_code, 200)
+        titles = [s['title'] for s in response.json()['sessions']]
+        self.assertIn('Mine', titles)
+        self.assertNotIn('Not mine', titles)
+
+    def test_dashboard_stats_only_counts_own_sessions(self):
+        response = self.client.get('/api/chat/dashboard/stats/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['research_sessions'], 1)
+
+    def test_cannot_delete_another_users_session_from_dashboard(self):
+        response = self.client.delete(f'/api/chat/dashboard/sessions/{self.other_session.id}/delete/')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(ChatSession.objects.filter(id=self.other_session.id).exists())
+
+    def test_dashboard_endpoints_require_authentication(self):
+        anonymous_client = APIClient()
+
+        for response in (
+            anonymous_client.get('/api/chat/dashboard/stats/'),
+            anonymous_client.get('/api/chat/dashboard/sessions/'),
+            anonymous_client.get('/api/chat/dashboard/insights/'),
+        ):
+            self.assertEqual(response.status_code, 401)
