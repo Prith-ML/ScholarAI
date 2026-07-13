@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/theme-provider"
+import AuthHydrator from "@/components/AuthHydrator"
 import "./globals.css"
 
 const inter = Inter({
@@ -45,6 +46,7 @@ export default function RootLayout({
             components like DottedSurface) resolves correctly without adding
             a real light/dark switch nobody asked for. */}
         <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark" enableSystem={false}>
+          <AuthHydrator />
           {children}
           <Toaster
             theme="dark"
