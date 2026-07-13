@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
@@ -76,3 +77,23 @@ def token_refresh(request):
         path=settings.AUTH_COOKIE_PATH,
     )
     return response
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def logout(request):
+    raw_token = request.COOKIES.get(settings.AUTH_COOKIE_NAME)
+    if raw_token:
+        try:
+            RefreshToken(raw_token).blacklist()
+        except TokenError:
+            pass
+    response = Response(status=status.HTTP_204_NO_CONTENT)
+    response.delete_cookie(settings.AUTH_COOKIE_NAME, path=settings.AUTH_COOKIE_PATH)
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    return Response(UserSerializer(request.user).data)

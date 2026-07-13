@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.test import TestCase
+from rest_framework.test import APIClient
 
 
 class SignupTests(TestCase):
@@ -123,5 +124,57 @@ class TokenRefreshTests(TestCase):
 
     def test_refresh_without_cookie_returns_401(self):
         response = self.client.post('/api/auth/token/refresh/', content_type='application/json')
+
+        self.assertEqual(response.status_code, 401)
+
+
+class LogoutTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice@example.com', email='alice@example.com', password='correct horse battery staple'
+        )
+        self.client = APIClient()
+        login = self.client.post(
+            '/api/auth/login/',
+            data={'email': 'alice@example.com', 'password': 'correct horse battery staple'},
+            format='json',
+        )
+        self.access_token = login.json()['access']
+        self.client.cookies['refresh_token'] = login.cookies['refresh_token'].value
+
+    def test_logout_blacklists_the_refresh_token(self):
+        response = self.client.post(
+            '/api/auth/logout/',
+            HTTP_AUTHORIZATION=f'Bearer {self.access_token}',
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.cookies['refresh_token'].value, '')
+
+        refresh_attempt = self.client.post('/api/auth/token/refresh/')
+        self.assertEqual(refresh_attempt.status_code, 401)
+
+    def test_logout_requires_authentication(self):
+        anonymous_client = APIClient()
+        response = anonymous_client.post('/api/auth/logout/')
+        self.assertEqual(response.status_code, 401)
+
+
+class MeTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice@example.com', email='alice@example.com', password='correct horse battery staple'
+        )
+        self.client = APIClient()
+
+    def test_me_returns_current_user(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get('/api/auth/me/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'id': self.user.id, 'email': 'alice@example.com'})
+
+    def test_me_requires_authentication(self):
+        response = self.client.get('/api/auth/me/')
 
         self.assertEqual(response.status_code, 401)
