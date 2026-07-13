@@ -71,12 +71,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # Third party apps
     'rest_framework',
     'corsheaders',
     'channels',
-    
+    'rest_framework_simplejwt.token_blacklist',
+
     # Local apps
     'users',
     'chat',
@@ -181,6 +182,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
@@ -190,6 +192,28 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }
+
+# JWT auth settings
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+# The refresh token is never readable by JS - it only ever travels as an
+# httpOnly cookie scoped to the auth endpoints. Secure/SameSite=None is
+# required for the cross-domain Vercel/Railway production deployment;
+# relaxed to Lax/non-Secure locally since plain http://localhost can't set
+# Secure cookies and doesn't need SameSite=None (frontend and backend are
+# same-site to each other on localhost regardless of port).
+AUTH_COOKIE_NAME = 'refresh_token'
+AUTH_COOKIE_PATH = '/api/auth/'
+AUTH_COOKIE_SECURE = not DEBUG
+AUTH_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
