@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth import authenticate
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -33,3 +34,14 @@ def signup(request):
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
     return _issue_tokens_response(user, status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([])
+def login(request):
+    email = request.data.get('email', '')
+    password = request.data.get('password', '')
+    user = authenticate(request, username=email, password=password)
+    if user is None:
+        return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
+    return _issue_tokens_response(user, status.HTTP_200_OK)

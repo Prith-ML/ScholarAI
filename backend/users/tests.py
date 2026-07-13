@@ -44,3 +44,42 @@ class SignupTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn('password', response.json())
+
+
+class LoginTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='alice@example.com', email='alice@example.com', password='correct horse battery staple'
+        )
+
+    def test_login_with_correct_credentials_returns_tokens(self):
+        response = self.client.post(
+            '/api/auth/login/',
+            data={'email': 'alice@example.com', 'password': 'correct horse battery staple'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('access', data)
+        self.assertEqual(data['user']['email'], 'alice@example.com')
+        self.assertIn('refresh_token', response.cookies)
+
+    def test_login_with_wrong_password_returns_401(self):
+        response = self.client.post(
+            '/api/auth/login/',
+            data={'email': 'alice@example.com', 'password': 'wrong password'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn('refresh_token', response.cookies)
+
+    def test_login_with_unknown_email_returns_401(self):
+        response = self.client.post(
+            '/api/auth/login/',
+            data={'email': 'nobody@example.com', 'password': 'whatever'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 401)
