@@ -1,3 +1,35 @@
-from django.shortcuts import render
+from django.conf import settings
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 
-# Create your views here.
+from .serializers import SignupSerializer, UserSerializer
+
+
+def _issue_tokens_response(user, status_code):
+    """Build the {access, user} body + set the httpOnly refresh cookie. Shared by signup and login (Task 3)."""
+    refresh = RefreshToken.for_user(user)
+    response = Response(
+        {'access': str(refresh.access_token), 'user': UserSerializer(user).data},
+        status=status_code,
+    )
+    response.set_cookie(
+        key=settings.AUTH_COOKIE_NAME,
+        value=str(refresh),
+        max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+        path=settings.AUTH_COOKIE_PATH,
+    )
+    return response
+
+
+@api_view(['POST'])
+@permission_classes([])
+def signup(request):
+    serializer = SignupSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    user = serializer.save()
+    return _issue_tokens_response(user, status.HTTP_201_CREATED)

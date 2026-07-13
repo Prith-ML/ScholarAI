@@ -1,3 +1,46 @@
+from django.contrib.auth.models import User
 from django.test import TestCase
 
-# Create your tests here.
+
+class SignupTests(TestCase):
+    def test_signup_creates_user_and_returns_tokens(self):
+        response = self.client.post(
+            '/api/auth/signup/',
+            data={'email': 'alice@example.com', 'password': 'correct horse battery staple'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertIn('access', data)
+        self.assertEqual(data['user']['email'], 'alice@example.com')
+
+        user = User.objects.get(email='alice@example.com')
+        self.assertEqual(user.username, 'alice@example.com')
+        self.assertTrue(user.check_password('correct horse battery staple'))
+
+        self.assertIn('refresh_token', response.cookies)
+        cookie = response.cookies['refresh_token']
+        self.assertTrue(cookie['httponly'])
+
+    def test_signup_rejects_duplicate_email(self):
+        User.objects.create_user(username='alice@example.com', email='alice@example.com', password='x')
+
+        response = self.client.post(
+            '/api/auth/signup/',
+            data={'email': 'alice@example.com', 'password': 'correct horse battery staple'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('email', response.json())
+
+    def test_signup_rejects_weak_password(self):
+        response = self.client.post(
+            '/api/auth/signup/',
+            data={'email': 'bob@example.com', 'password': '123'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('password', response.json())
