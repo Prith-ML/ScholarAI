@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { DottedSurface } from "@/components/ui/dotted-surface"
 import AppShell from "@/components/AppShell"
+import { apiFetch } from "@/lib/api"
 
 interface Message {
   id: string
@@ -86,7 +87,7 @@ const MessageActions = ({ message }: { message: Message }) => {
     setSaving(true)
     setNotionError(null)
     try {
-      const response = await fetch(`${API_BASE}/api/chat/messages/${message.id}/save-to-notion/`, {
+      const response = await apiFetch(`/api/chat/messages/${message.id}/save-to-notion/`, {
         method: "POST",
       })
       const data = await response.json()
@@ -308,7 +309,7 @@ function ChatPageContent() {
     setIsLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE}/api/chat/send/`, {
+      const response = await apiFetch(`/api/chat/send/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: textToSend, session_id: sessionId }),

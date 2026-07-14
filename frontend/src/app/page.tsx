@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ShaderAnimation } from "@/components/ui/shader-animation"
 import AppShell from "@/components/AppShell"
+import { useAuthStore } from "@/store/authStore"
 
 const features = [
   {
@@ -52,6 +53,7 @@ const item = {
 
 export default function HomePage() {
   const reduceMotion = useReducedMotion()
+  const status = useAuthStore((state) => state.status)
 
   return (
     <AppShell>
@@ -100,6 +102,19 @@ export default function HomePage() {
               ScholarAI reads academic papers and industry sources together, cites everything it says, and turns
               answers into permanent notes in your own workspace.
             </p>
+
+            {status !== "authenticated" && (
+              <p className="mb-4 text-sm text-white/50">
+                <Link href="/signup" className="text-white underline">
+                  Sign up
+                </Link>{" "}
+                or{" "}
+                <Link href="/signin" className="text-white underline">
+                  sign in
+                </Link>{" "}
+                to save your research sessions.
+              </p>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/chat">

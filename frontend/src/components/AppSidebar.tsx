@@ -5,12 +5,37 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Atom, MessageSquare, LayoutDashboard, Plus, Menu, X } from "lucide-react"
+import { useAuthStore } from "@/store/authStore"
 
 const navigation = [
   { name: "Overview", href: "/", icon: Atom },
   { name: "Chat", href: "/chat", icon: MessageSquare },
   { name: "Research", href: "/research", icon: LayoutDashboard },
 ]
+
+function SidebarAccount() {
+  const { user, status, logout } = useAuthStore()
+
+  if (status !== "authenticated" || !user) {
+    return (
+      <Link href="/signin" className="text-sm text-white/60 hover:text-white transition-colors">
+        Sign in
+      </Link>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs text-white/50 truncate">{user.email}</span>
+      <button
+        onClick={() => logout()}
+        className="text-xs text-white/60 hover:text-white transition-colors shrink-0"
+      >
+        Sign out
+      </button>
+    </div>
+  )
+}
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
@@ -67,10 +92,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="px-5 py-5 border-t border-white/[0.06]">
-        <div className="flex items-center gap-2 text-[11px] text-white/35">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          Research engine online
-        </div>
+        <SidebarAccount />
       </div>
     </div>
   )

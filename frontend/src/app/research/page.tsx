@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import AppShell from "@/components/AppShell"
+import { apiFetch } from "@/lib/api"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
@@ -71,9 +72,9 @@ export default function ResearchPage() {
       setError(null)
 
       const [statsResponse, sessionsResponse, insightsResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/chat/dashboard/stats/`),
-        fetch(`${API_BASE}/api/chat/dashboard/sessions/`),
-        fetch(`${API_BASE}/api/chat/dashboard/insights/`),
+        apiFetch(`/api/chat/dashboard/stats/`),
+        apiFetch(`/api/chat/dashboard/sessions/`),
+        apiFetch(`/api/chat/dashboard/insights/`),
       ])
 
       if (statsResponse.ok) setStats(await statsResponse.json())
@@ -99,7 +100,7 @@ export default function ResearchPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/chat/dashboard/sessions/${sessionId}/delete/`, { method: "DELETE" })
+      const response = await apiFetch(`/api/chat/dashboard/sessions/${sessionId}/delete/`, { method: "DELETE" })
       if (response.ok) {
         setRecentSessions((prev) => prev.filter((session) => session.id !== sessionId))
         toast.success("Session deleted")
