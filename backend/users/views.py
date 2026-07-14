@@ -42,7 +42,7 @@ def signup(request):
 @api_view(['POST'])
 @permission_classes([])
 def login(request):
-    email = request.data.get('email', '')
+    email = (request.data.get('email') or '').strip().lower()
     password = request.data.get('password', '')
     user = authenticate(request, username=email, password=password)
     if user is None:

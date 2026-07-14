@@ -8,7 +8,7 @@ from .serializers import ChatSessionSerializer, ChatMessageSerializer, MessageSe
 import sys
 import os
 from django.shortcuts import render
-from django.http import JsonResponse, Http404
+from django.http import Http404
 from django.utils import timezone
 from datetime import timedelta
 import json
@@ -112,7 +112,7 @@ def save_to_notion(request, message_id):
     message = get_object_or_404(Message, id=message_id, role='assistant', session__user=request.user)
 
     if message.notion_url:
-        return JsonResponse({'notion_url': message.notion_url})
+        return Response({'notion_url': message.notion_url})
 
     user_message = message.session.messages.filter(
         role='user', timestamp__lt=message.timestamp
@@ -122,12 +122,12 @@ def save_to_notion(request, message_id):
     result = notion_export.save_message_to_notion(query, message.content)
 
     if 'error' in result:
-        return JsonResponse({'error': result['error']}, status=502)
+        return Response({'error': result['error']}, status=502)
 
     message.notion_url = result['notion_url']
     message.save(update_fields=['notion_url'])
 
-    return JsonResponse({'notion_url': message.notion_url})
+    return Response({'notion_url': message.notion_url})
 
 def update_session_topics(session, message_text):
     """Extract and update session topics based on message content"""

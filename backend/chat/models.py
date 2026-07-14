@@ -94,7 +94,7 @@ class ResearchStats(models.Model):
         return f"Stats for {username}"
     
     @classmethod
-    def get_or_create_stats(cls, user=None):
+    def get_or_create_stats(cls, user):
         """Get or create stats for a user"""
         stats, created = cls.objects.get_or_create(user=user)
         if created:

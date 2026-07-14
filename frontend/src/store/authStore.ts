@@ -20,6 +20,43 @@ interface AuthState {
   logout: () => Promise<void>
 }
 
+// Single-flight guard for POST /api/auth/token/refresh/.
+//
+// ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION means only the first
+// concurrent call to this endpoint succeeds - the refresh cookie is
+// blacklisted immediately after use, so any other concurrent attempt
+// reusing the same (now-stale) cookie 401s. Without coordination this
+// happens routinely: hydrate() fires a refresh on load while apiFetch()
+// retries independently fire their own refreshes on 401, and only one of
+// them can win the race - the rest would incorrectly log a valid user out.
+//
+// This function is shared by hydrate() (below) and apiFetch() (in
+// lib/api.ts) so that no matter how many callers need a refreshed token at
+// once, only one network call is ever in flight; everyone else awaits the
+// same promise.
+let refreshPromise: Promise<string | null> | null = null
+
+export async function attemptRefresh(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!response.ok) return null
+      const { access } = await response.json()
+      useAuthStore.getState().setAccessToken(access)
+      return access
+    } catch {
+      return null
+    } finally {
+      refreshPromise = null
+    }
+  })()
+  return refreshPromise
+}
+
 async function parseErrorMessage(response: Response): Promise<string> {
   try {
     const data = await response.json()
@@ -41,15 +78,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   hydrate: async () => {
     try {
-      const refreshResponse = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
-        method: "POST",
-        credentials: "include",
-      })
-      if (!refreshResponse.ok) {
+      const access = await attemptRefresh()
+      if (!access) {
         set({ user: null, accessToken: null, status: "unauthenticated" })
         return
       }
-      const { access } = await refreshResponse.json()
 
       const meResponse = await fetch(`${API_BASE}/api/auth/me/`, {
         headers: { Authorization: `Bearer ${access}` },

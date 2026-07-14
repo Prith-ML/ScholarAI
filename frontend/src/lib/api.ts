@@ -1,21 +1,10 @@
-import { useAuthStore } from "@/store/authStore"
+import { useAuthStore, attemptRefresh } from "@/store/authStore"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
-async function attemptRefresh(): Promise<string | null> {
-  try {
-    const response = await fetch(`${API_BASE}/api/auth/token/refresh/`, {
-      method: "POST",
-      credentials: "include",
-    })
-    if (!response.ok) return null
-    const { access } = await response.json()
-    useAuthStore.getState().setAccessToken(access)
-    return access
-  } catch {
-    return null
-  }
-}
+// Token refresh itself is single-flighted in authStore.ts (shared by
+// hydrate() and any number of concurrent apiFetch() 401 retries below) so
+// that only one refresh request is ever in flight at a time.
 
 /**
  * Drop-in replacement for fetch() against the Django API: attaches the

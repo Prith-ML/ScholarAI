@@ -18,8 +18,8 @@ class SignupSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         return User.objects.create_user(
-            username=validated_data['email'],
-            email=validated_data['email'],
+            username=validated_data['email'].lower(),
+            email=validated_data['email'].lower(),
             password=validated_data['password'],
         )
 
